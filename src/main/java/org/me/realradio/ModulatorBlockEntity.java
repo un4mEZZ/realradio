@@ -25,14 +25,9 @@ public class ModulatorBlockEntity extends BlockEntity {
             int power = world.getReceivedRedstonePower(pos);
 
             BlockPos antennaBase = AntennaUtil.findAntennaBase(world, pos);
-            int range = 0;
+            // Используем общий метод
+            int range = AntennaUtil.calculateRange(world, antennaBase);
 
-            if (antennaBase != null) {
-                int mastHeight = AntennaUtil.calculateMastHeight(world, antennaBase);
-                range = 5 + (mastHeight * 10);
-            }
-
-            // Отправляем сигнал, прикладывая координаты базы как ID
             RadioNetworkManager.broadcastRedstone(be.band, be.frequency, pos, power, range, antennaBase);
         }
     }

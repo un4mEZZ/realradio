@@ -24,12 +24,10 @@ public class DemodulatorBlockEntity extends BlockEntity {
             be.tickCounter = 0;
 
             BlockPos antennaBase = AntennaUtil.findAntennaBase(world, pos);
-            int receivedPower = 0;
+            // Считаем свой радиус
+            int range = AntennaUtil.calculateRange(world, antennaBase);
 
-            // Приемник работает ТОЛЬКО если у него есть антенна
-            if (antennaBase != null) {
-                receivedPower = RadioNetworkManager.receiveRedstone(be.band, be.frequency, pos, antennaBase);
-            }
+            int receivedPower = RadioNetworkManager.receiveRedstone(be.band, be.frequency, pos, antennaBase, range);
 
             int currentPower = state.get(DemodulatorBlock.POWER);
             if (receivedPower != currentPower) {

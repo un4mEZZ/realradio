@@ -7,7 +7,6 @@ import java.util.concurrent.ConcurrentHashMap;
 public class RadioNetworkManager {
     private static final Map<String, Map<BlockPos, TransmitterData>> REDSTONE_ETHER = new ConcurrentHashMap<>();
 
-    // Теперь храним еще и ID антенны (координаты её базы)
     public record TransmitterData(int power, int range, BlockPos antennaId) {}
 
     private static String getKey(RadioBand band, float frequency) {
@@ -27,10 +26,10 @@ public class RadioNetworkManager {
         REDSTONE_ETHER.computeIfAbsent(key, k -> new ConcurrentHashMap<>()).put(pos, new TransmitterData(power, range, antennaId));
     }
 
-    // Приемник передает СВОЙ antennaId для фильтрации
-    public static int receiveRedstone(RadioBand band, float frequency, BlockPos receiverPos, BlockPos receiverAntennaId) {
+    // Принимаем сигнал с учетом радиуса САМОГО приемника
+    public static int receiveRedstone(RadioBand band, float frequency, BlockPos receiverPos, BlockPos receiverAntennaId, int receiverRange) {
         String key = getKey(band, frequency);
-        if (!REDSTONE_ETHER.containsKey(key)) return 0;
+        if (!REDSTONE_ETHER.containsKey(key) || receiverRange <= 0) return 0;
 
         int maxPowerReceived = 0;
 
@@ -38,15 +37,19 @@ public class RadioNetworkManager {
             BlockPos transmitterPos = entry.getKey();
             TransmitterData data = entry.getValue();
 
-            // ФИЛЬТР: Если сигнал идет с той же антенны, к которой подключен приемник — игнорируем!
+            // Игнорируем собственную антенну
             if (data.antennaId() != null && data.antennaId().equals(receiverAntennaId)) {
                 continue;
             }
 
-            double distance = receiverPos.getSquaredDistance(transmitterPos);
-            double maxDistanceSq = (double) data.range() * data.range();
+            double distanceSq = receiverPos.getSquaredDistance(transmitterPos);
 
-            if (distance <= maxDistanceSq) {
+            // Предельная дистанция равна МИНИМУМУ из возможностей передатчика и приемника
+            int effectiveMaxRange = Math.min(data.range(), receiverRange);
+            double effectiveMaxRangeSq = (double) effectiveMaxRange * effectiveMaxRange;
+
+            // Если дистанция укладывается в возможности ОБЕИХ антенн
+            if (distanceSq <= effectiveMaxRangeSq) {
                 if (data.power() > maxPowerReceived) {
                     maxPowerReceived = data.power();
                 }

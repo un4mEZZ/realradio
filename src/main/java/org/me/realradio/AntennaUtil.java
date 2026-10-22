@@ -7,19 +7,17 @@ import org.jetbrains.annotations.Nullable;
 
 public class AntennaUtil {
 
-    // Ищет прилегающий блок Основания Антенны (возвращает его координаты)
     @Nullable
     public static BlockPos findAntennaBase(World world, BlockPos devicePos) {
         for (Direction dir : Direction.values()) {
             BlockPos checkPos = devicePos.offset(dir);
             if (world.getBlockState(checkPos).isOf(ModBlocks.ANTENNA_BASE)) {
-                return checkPos; // Возвращаем первую найденную базу
+                return checkPos;
             }
         }
         return null;
     }
 
-    // Считает высоту мачты, начиная от Основания
     public static int calculateMastHeight(World world, BlockPos basePos) {
         int height = 0;
         BlockPos currentPos = basePos.up();
@@ -28,5 +26,11 @@ public class AntennaUtil {
             currentPos = currentPos.up();
         }
         return height;
+    }
+
+    public static int calculateRange(World world, @Nullable BlockPos basePos) {
+        if (basePos == null) return 0;
+        int height = calculateMastHeight(world, basePos);
+        return 5 + (height * 10);
     }
 }
