@@ -1,26 +1,22 @@
 package org.me.realradio;
 
 import net.minecraft.util.math.BlockPos;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
 public class RadioNetworkManager {
-    // Хранилище: "КлючЧастоты" -> (Позиция Передатчика -> Данные о сигнале)
     private static final Map<String, Map<BlockPos, TransmitterData>> REDSTONE_ETHER = new ConcurrentHashMap<>();
 
-    // Класс-контейнер для данных передатчика
-    public record TransmitterData(int power, int range) {}
+    // Теперь храним еще и ID антенны (координаты её базы)
+    public record TransmitterData(int power, int range, BlockPos antennaId) {}
 
     private static String getKey(RadioBand band, float frequency) {
         return band.asString() + "_" + String.format("%.1f", frequency);
     }
 
-    // Обновление или регистрация передатчика в эфире
-    public static void broadcastRedstone(RadioBand band, float frequency, BlockPos pos, int power, int range) {
+    public static void broadcastRedstone(RadioBand band, float frequency, BlockPos pos, int power, int range, BlockPos antennaId) {
         String key = getKey(band, frequency);
 
-        // Если сигнал 0 или радиус 0 — удаляем передатчик из эфира (он выключен)
         if (power <= 0 || range <= 0) {
             if (REDSTONE_ETHER.containsKey(key)) {
                 REDSTONE_ETHER.get(key).remove(pos);
@@ -28,29 +24,29 @@ public class RadioNetworkManager {
             return;
         }
 
-        // Регистрируем передатчик
-        REDSTONE_ETHER.computeIfAbsent(key, k -> new ConcurrentHashMap<>()).put(pos, new TransmitterData(power, range));
+        REDSTONE_ETHER.computeIfAbsent(key, k -> new ConcurrentHashMap<>()).put(pos, new TransmitterData(power, range, antennaId));
     }
 
-    // Приемник запрашивает сигнал, учитывая свои координаты
-    public static int receiveRedstone(RadioBand band, float frequency, BlockPos receiverPos) {
+    // Приемник передает СВОЙ antennaId для фильтрации
+    public static int receiveRedstone(RadioBand band, float frequency, BlockPos receiverPos, BlockPos receiverAntennaId) {
         String key = getKey(band, frequency);
         if (!REDSTONE_ETHER.containsKey(key)) return 0;
 
         int maxPowerReceived = 0;
 
-        // Проверяем все передатчики на этой частоте
         for (Map.Entry<BlockPos, TransmitterData> entry : REDSTONE_ETHER.get(key).entrySet()) {
             BlockPos transmitterPos = entry.getKey();
             TransmitterData data = entry.getValue();
 
-            // Вычисляем расстояние между приемником и передатчиком
+            // ФИЛЬТР: Если сигнал идет с той же антенны, к которой подключен приемник — игнорируем!
+            if (data.antennaId() != null && data.antennaId().equals(receiverAntennaId)) {
+                continue;
+            }
+
             double distance = receiverPos.getSquaredDistance(transmitterPos);
             double maxDistanceSq = (double) data.range() * data.range();
 
-            // Если приемник в зоне действия
             if (distance <= maxDistanceSq) {
-                // Берем самый сильный сигнал, если в радиусе несколько передатчиков
                 if (data.power() > maxPowerReceived) {
                     maxPowerReceived = data.power();
                 }

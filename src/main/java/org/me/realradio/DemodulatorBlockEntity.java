@@ -20,12 +20,18 @@ public class DemodulatorBlockEntity extends BlockEntity {
         if (world.isClient()) return;
 
         be.tickCounter++;
-        if (be.tickCounter >= 20) { // Дискретизация: 20 тиков
+        if (be.tickCounter >= 20) {
             be.tickCounter = 0;
-            int receivedPower = RadioNetworkManager.receiveRedstone(be.band, be.frequency, pos);
-            int currentPower = state.get(DemodulatorBlock.POWER);
 
-            // Обновляем блок в мире только если сила сигнала изменилась (оптимизация)
+            BlockPos antennaBase = AntennaUtil.findAntennaBase(world, pos);
+            int receivedPower = 0;
+
+            // Приемник работает ТОЛЬКО если у него есть антенна
+            if (antennaBase != null) {
+                receivedPower = RadioNetworkManager.receiveRedstone(be.band, be.frequency, pos, antennaBase);
+            }
+
+            int currentPower = state.get(DemodulatorBlock.POWER);
             if (receivedPower != currentPower) {
                 world.setBlockState(pos, state.with(DemodulatorBlock.POWER, receivedPower), 3);
             }
