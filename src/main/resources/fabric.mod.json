@@ -1,0 +1,35 @@
+{
+  "schemaVersion": 1,
+  "id": "realradio",
+  "version": "${version}",
+  "name": "realradio",
+  "description": "",
+  "authors": [],
+  "contact": {},
+  "license": "MIT",
+  "icon": "assets/realradio/icon.png",
+  "environment": "*",
+  "entrypoints": {
+    "fabric-datagen": [
+      "org.me.realradio.client.RealradioDataGenerator"
+    ],
+    "client": [
+      "org.me.realradio.client.RealradioClient"
+    ],
+    "main": [
+      "org.me.realradio.Realradio"
+    ]
+  },
+  "mixins": [
+    "realradio.mixins.json",
+    {
+      "config": "realradio.client.mixins.json",
+      "environment": "client"
+    }
+  ],
+  "depends": {
+    "fabricloader": ">=${loader_version}",
+    "fabric-api": "*",
+    "minecraft": "${minecraft_version}"
+  }
+}
