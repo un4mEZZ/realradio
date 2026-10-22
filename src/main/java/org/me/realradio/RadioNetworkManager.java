@@ -59,56 +59,54 @@ public class RadioNetworkManager {
     }
 
     // ==========================================
-    // СИСТЕМА ПЕРЕДАЧИ ЗВУКА (АУДИО-СЕТЬ)
+    // ПОТОКОВОЕ АУДИО (UDP-ПРОТОКОЛ)
     // ==========================================
 
-    // Хранилище приемников: "КлючЧастоты" -> (Позиция Приемника -> Данные Приемника)
-    public record ReceiverData(BlockPos antennaId, int range) {}
-    private static final Map<String, Map<BlockPos, ReceiverData>> ACTIVE_RECEIVERS = new ConcurrentHashMap<>();
+    // Пакет данных потока: Звук, Уникальный ID запуска (чтобы различать два одинаковых трека подряд), Радиус и Антенна
+    public record AudioStreamPacket(net.minecraft.sound.SoundEvent sound, java.util.UUID streamId, int range, BlockPos antennaId) {}
 
-    // Приемник сообщает эфиру, что он готов слушать
-    public static void registerReceiver(RadioBand band, float frequency, BlockPos pos, BlockPos antennaId, int range) {
-        if (range <= 0 || antennaId == null) {
-            unregisterReceiver(band, frequency, pos);
+    private static final Map<String, Map<BlockPos, AudioStreamPacket>> AUDIO_ETHER = new ConcurrentHashMap<>();
+
+    // Передатчик пушит пакет в эфир (если sound == null, поток прерывается)
+    public static void broadcastAudioStream(RadioBand band, float frequency, BlockPos txPos,
+                                            net.minecraft.sound.SoundEvent sound, java.util.UUID streamId,
+                                            int range, BlockPos antennaId) {
+        String key = getKey(band, frequency);
+
+        // Если звука нет или антенна сломана — удаляем поток из эфира
+        if (sound == null || streamId == null || range <= 0 || antennaId == null) {
+            if (AUDIO_ETHER.containsKey(key)) {
+                AUDIO_ETHER.get(key).remove(txPos);
+            }
             return;
         }
-        String key = getKey(band, frequency);
-        ACTIVE_RECEIVERS.computeIfAbsent(key, k -> new ConcurrentHashMap<>()).put(pos, new ReceiverData(antennaId, range));
+
+        AUDIO_ETHER.computeIfAbsent(key, k -> new ConcurrentHashMap<>())
+                .put(txPos, new AudioStreamPacket(sound, streamId, range, antennaId));
     }
 
-    // Приемник удаляется из эфира (если его сломали или сменили частоту)
-    public static void unregisterReceiver(RadioBand band, float frequency, BlockPos pos) {
+    // Приемник ловит поток из эфира
+    public static AudioStreamPacket receiveAudioStream(RadioBand band, float frequency, BlockPos rxPos, BlockPos rxAntennaId, int rxRange) {
         String key = getKey(band, frequency);
-        if (ACTIVE_RECEIVERS.containsKey(key)) {
-            ACTIVE_RECEIVERS.get(key).remove(pos);
-        }
-    }
+        if (!AUDIO_ETHER.containsKey(key) || rxRange <= 0 || rxAntennaId == null) return null;
 
-    // Передатчик отправляет звук в эфир
-    public static void broadcastSound(net.minecraft.world.World world, RadioBand band, float frequency,
-                                      BlockPos txPos, BlockPos txAntennaId, int txRange,
-                                      net.minecraft.sound.SoundEvent sound, float volume, float pitch) {
-        String key = getKey(band, frequency);
-        if (!ACTIVE_RECEIVERS.containsKey(key)) return; // Никто не слушает эту частоту
+        // Ищем первый доступный передатчик в зоне действия
+        for (Map.Entry<BlockPos, AudioStreamPacket> entry : AUDIO_ETHER.get(key).entrySet()) {
+            BlockPos txPos = entry.getKey();
+            AudioStreamPacket packet = entry.getValue();
 
-        for (Map.Entry<BlockPos, ReceiverData> entry : ACTIVE_RECEIVERS.get(key).entrySet()) {
-            BlockPos rxPos = entry.getKey();
-            ReceiverData rxData = entry.getValue();
+            // Игнорируем собственную антенну
+            if (packet.antennaId().equals(rxAntennaId)) continue;
 
-            // Игнорируем свою же антенну (защита от эха)
-            if (txAntennaId != null && txAntennaId.equals(rxData.antennaId())) {
-                continue;
-            }
-
-            double distanceSq = txPos.getSquaredDistance(rxPos);
-            int effectiveMaxRange = Math.min(txRange, rxData.range());
+            double distanceSq = rxPos.getSquaredDistance(txPos);
+            int effectiveMaxRange = Math.min(packet.range(), rxRange);
             double effectiveMaxRangeSq = (double) effectiveMaxRange * effectiveMaxRange;
 
-            // Если приемник в зоне действия — играем звук прямо на его координатах!
             if (distanceSq <= effectiveMaxRangeSq) {
-                world.playSound(null, rxPos, sound, net.minecraft.sound.SoundCategory.RECORDS, volume, pitch);
+                return packet; // Поток пойман!
             }
         }
+        return null; // В эфире тишина (или передатчик слишком далеко)
     }
 }
 

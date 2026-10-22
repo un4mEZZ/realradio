@@ -42,24 +42,9 @@ public class ModulatorBlock extends BlockWithEntity {
     @Override
     protected ActionResult onUse(BlockState state, World world, BlockPos pos, PlayerEntity player, BlockHitResult hit) {
         if (!world.isClient() && world.getBlockEntity(pos) instanceof ModulatorBlockEntity be) {
-
-            if (player.isSneaking()) {
-                // ТЕСТ ЗВУКА: Передаем звуковой пакет
-                BlockPos base = AntennaUtil.findAntennaBase(world, pos);
-                int range = AntennaUtil.calculateRange(world, base);
-
-                // Проигрываем звук ДЛЯ СЕБЯ (тихо)
-                world.playSound(null, pos, net.minecraft.sound.SoundEvents.BLOCK_NOTE_BLOCK_BELL.value(), net.minecraft.sound.SoundCategory.BLOCKS, 0.5f, 1.0f);
-
-                // ОТПРАВЛЯЕМ ЗВУК В ЭФИР!
-                RadioNetworkManager.broadcastSound(world, be.getBand(), be.getFrequency(), pos, base, range, net.minecraft.sound.SoundEvents.BLOCK_NOTE_BLOCK_BELL.value(), 1.0f, 1.0f);
-
-                player.sendMessage(net.minecraft.text.Text.literal("§eОтправлен звуковой сигнал!"), true);
-            } else {
-                // Обычный клик - переключение частоты
-                be.cycleFrequency();
-                player.sendMessage(net.minecraft.text.Text.literal("§a[Передатчик] Частота: " + be.getFrequency() + " " + be.getBand().asString()), true);
-            }
+            // Обычный клик - переключение частоты
+            be.cycleFrequency();
+            player.sendMessage(net.minecraft.text.Text.literal("§a[Передатчик] Частота: " + be.getFrequency() + " " + be.getBand().asString()), true);
         }
         return ActionResult.SUCCESS;
     }

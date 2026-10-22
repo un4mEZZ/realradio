@@ -14,15 +14,12 @@ import net.minecraft.util.Identifier;
 
 public class ModBlocks {
 
-    // --- НОВЫЕ БЛОКИ АНТЕННЫ ---
     public static final Block ANTENNA_BASE = registerBlock("antenna_base",
             new Block(AbstractBlock.Settings.create().strength(3.0f).requiresTool()));
 
-    // Наследуем от PaneBlock, чтобы мачта выглядела и соединялась как стеклянная панель / железные прутья
     public static final Block ANTENNA_PART = registerBlock("antenna_part",
             new PaneBlock(AbstractBlock.Settings.create().strength(2.0f).nonOpaque()));
 
-    // --- СТАРЫЕ БЛОКИ ---
     public static final Block MODULATOR = registerBlock("modulator",
             new ModulatorBlock(AbstractBlock.Settings.create().strength(2.0f)));
     public static final Block DEMODULATOR = registerBlock("demodulator",
@@ -38,6 +35,14 @@ public class ModBlocks {
             BlockEntityType.Builder.create(DemodulatorBlockEntity::new, DEMODULATOR).build(null)
     );
 
+    public static final Block MUSIC_RADIO = registerBlock("music_radio.json",
+            new MusicRadioBlock(AbstractBlock.Settings.create().strength(2.0f)));
+
+    public static final BlockEntityType<MusicRadioBlockEntity> MUSIC_RADIO_BE = Registry.register(
+            Registries.BLOCK_ENTITY_TYPE, Identifier.of(Realradio.MOD_ID, "music_radio_be"),
+            BlockEntityType.Builder.create(MusicRadioBlockEntity::new, MUSIC_RADIO).build(null)
+    );
+
     private static Block registerBlock(String name, Block block) {
         Identifier id = Identifier.of(Realradio.MOD_ID, name);
         Registry.register(Registries.ITEM, id, new BlockItem(block, new Item.Settings()));
@@ -50,6 +55,7 @@ public class ModBlocks {
             entries.add(DEMODULATOR);
             entries.add(ANTENNA_BASE);
             entries.add(ANTENNA_PART);
+            entries.add(MUSIC_RADIO);
         });
     }
 }
