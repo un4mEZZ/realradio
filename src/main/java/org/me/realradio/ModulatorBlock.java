@@ -52,7 +52,7 @@ public class ModulatorBlock extends BlockWithEntity {
     @Override
     public BlockState onBreak(World world, BlockPos pos, BlockState state, PlayerEntity player) {
         if (!world.isClient() && world.getBlockEntity(pos) instanceof ModulatorBlockEntity be) {
-            RadioNetworkManager.broadcastRedstone(be.getBand(), be.getFrequency(), 0);
+            RadioNetworkManager.broadcastRedstone(be.getBand(), be.getFrequency(), pos,0, 0);
         }
         return super.onBreak(world, pos, state, player);
     }

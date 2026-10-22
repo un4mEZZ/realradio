@@ -16,16 +16,53 @@ public class ModulatorBlockEntity extends BlockEntity {
         super(ModBlocks.MODULATOR_BE, pos, state);
     }
 
-    // Метод, который вызывается каждый игровой тик (20 раз в секунду)
+    // Метод для вычисления высоты антенны (в блоках)
+    private int calculateAntennaHeight(World world, BlockPos pos) {
+        int height = 0;
+        // Проверяем все 6 сторон вокруг передатчика на наличие основания антенны
+        BlockPos basePos = null;
+        for (net.minecraft.util.math.Direction dir : net.minecraft.util.math.Direction.values()) {
+            if (world.getBlockState(pos.offset(dir)).isOf(ModBlocks.ANTENNA_BASE)) {
+                basePos = pos.offset(dir);
+                break;
+            }
+        }
+
+        if (basePos == null) return 0; // Антенны нет — радиус 0
+
+        // Сканируем вверх от основания
+        BlockPos currentPos = basePos.up();
+        while (world.getBlockState(currentPos).isOf(ModBlocks.ANTENNA_PART)) {
+            height++;
+            currentPos = currentPos.up();
+        }
+        return height;
+    }
+
+    // Измененный tick
     public static void tick(World world, BlockPos pos, BlockState state, ModulatorBlockEntity be) {
-        if (world.isClient()) return; // Эфир работает только на сервере
+        if (world.isClient()) return;
 
         be.tickCounter++;
-        if (be.tickCounter >= 20) { // Дискретизация: 20 тиков
+        if (be.tickCounter >= 20) {
             be.tickCounter = 0;
             int power = world.getReceivedRedstonePower(pos);
-            RadioNetworkManager.broadcastRedstone(be.band, be.frequency, power);
+
+            int antennaHeight = be.calculateAntennaHeight(world, pos);
+            // Формула дальности: 1 блок мачты = 10 блоков радиуса. Базовый радиус от самого основания = 5.
+            int range = (antennaHeight > 0 || be.hasBase(world, pos)) ? 5 + (antennaHeight * 10) : 0;
+
+            // Отправляем с указанием позиции и радиуса
+            RadioNetworkManager.broadcastRedstone(be.band, be.frequency, pos, power, range);
         }
+    }
+
+    // Вспомогательный метод для проверки
+    private boolean hasBase(World world, BlockPos pos) {
+        for (net.minecraft.util.math.Direction dir : net.minecraft.util.math.Direction.values()) {
+            if (world.getBlockState(pos.offset(dir)).isOf(ModBlocks.ANTENNA_BASE)) return true;
+        }
+        return false;
     }
 
     // Переключение частоты (пока нет UI, будем делать это кликом по блоку)

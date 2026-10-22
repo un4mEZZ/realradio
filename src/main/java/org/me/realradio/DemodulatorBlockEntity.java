@@ -22,7 +22,7 @@ public class DemodulatorBlockEntity extends BlockEntity {
         be.tickCounter++;
         if (be.tickCounter >= 20) { // Дискретизация: 20 тиков
             be.tickCounter = 0;
-            int receivedPower = RadioNetworkManager.receiveRedstone(be.band, be.frequency);
+            int receivedPower = RadioNetworkManager.receiveRedstone(be.band, be.frequency, pos);
             int currentPower = state.get(DemodulatorBlock.POWER);
 
             // Обновляем блок в мире только если сила сигнала изменилась (оптимизация)
