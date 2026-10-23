@@ -71,43 +71,34 @@ public class MusicRadioBlockEntity extends BlockEntity implements ImplementedInv
     public void stopStream() {
         this.playTimer = 0;
         this.activeSlot = -1;
-        this.currentSound = null;
-        this.currentStreamId = null;
-        RadioNetworkManager.broadcastAudioStream(this.band, this.frequency, this.pos, null, null, 0, null);
+        org.me.realradio.server.RadioBroadcaster.stopFrequency(this.band, this.frequency);
     }
 
     private void playNextSong(World world, BlockPos pos) {
         for (int i = 0; i < 9; i++) {
-            ItemStack stack = this.inventory.get(this.currentSlot);
+            net.minecraft.item.ItemStack stack = this.inventory.get(this.currentSlot);
 
             if (!stack.isEmpty()) {
-                JukeboxPlayableComponent playable = stack.get(DataComponentTypes.JUKEBOX_PLAYABLE);
-                if (playable != null && playable.song() != null) {
-                    var registry = world.getRegistryManager().get(net.minecraft.registry.RegistryKeys.JUKEBOX_SONG);
-                    var optionalSong = playable.song().getValue(registry);
+                // ДЛЯ MVP: Берем системное имя предмета (например "music_disc_pigstep")
+                // И ищем файл "music_disc_pigstep.wav" в папке config/realradio/tracks/
+                String trackName = net.minecraft.registry.Registries.ITEM.getId(stack.getItem()).getPath();
 
-                    if (optionalSong.isPresent()) {
-                        JukeboxSong song = optionalSong.get();
+                int trackLengthInTicks = org.me.realradio.server.RadioBroadcaster.playTrackOnFrequency(this.band, this.frequency, trackName);
 
-                        // Настраиваем поток
-                        this.activeSlot = this.currentSlot;
-                        this.currentSound = song.soundEvent().value();
-                        this.currentStreamId = java.util.UUID.randomUUID(); // Генерируем новый ID потока
-                        this.playTimer = Math.round(song.lengthInSeconds() * 20.0f) + 20;
+                if (trackLengthInTicks > 0) {
+                    this.activeSlot = this.currentSlot;
+                    this.playTimer = trackLengthInTicks + 20; // + 1 секунда паузы между треками
+                    this.currentSlot = (this.currentSlot + 1) % 9;
 
-                        // Отправляем первый пакет немедленно
-                        BlockPos antennaBase = AntennaUtil.findAntennaBase(world, pos);
-                        int range = AntennaUtil.calculateRange(world, antennaBase);
-                        RadioNetworkManager.broadcastAudioStream(this.band, this.frequency, pos, this.currentSound, this.currentStreamId, range, antennaBase);
-
-                        this.currentSlot = (this.currentSlot + 1) % 9;
-                        return;
-                    }
+                    System.out.println("[Радиостанция] Запущен трек: " + trackName + " на частоте " + this.frequency);
+                    return;
+                } else {
+                    // Файла .wav нет на сервере!
+                    System.out.println("[Радиостанция] Ошибка: Файл " + trackName + ".ogg не найден в config/realradio/tracks/");
                 }
             }
             this.currentSlot = (this.currentSlot + 1) % 9;
         }
-        // Если проверили все 9 слотов и пластинок нет — убеждаемся, что в эфире тишина
         stopStream();
     }
 

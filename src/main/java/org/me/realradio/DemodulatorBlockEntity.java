@@ -39,7 +39,7 @@ public class DemodulatorBlockEntity extends BlockEntity {
 
             // ФАЗА 0 ТЕСТ: Если у приёмника есть антенна — включаем 3D-канал синусоиды 440 Гц (радиус слышимости 16 блоков)
             if (range > 0) {
-                org.me.realradio.compat.SvcRadioTransport.ensureReceiverActive(serverWorld, pos, 16.0f);
+                org.me.realradio.compat.SvcRadioTransport.ensureReceiverActive(serverWorld, pos, 16.0f, be.band, be.frequency);
             } else {
                 org.me.realradio.compat.SvcRadioTransport.removeReceiver(pos);
             }

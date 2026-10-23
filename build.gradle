@@ -57,6 +57,10 @@ dependencies {
     compileOnly "de.maxhenkel.opus4j:opus4j:2.1.0"
     modRuntimeOnly "maven.modrinth:simple-voice-chat:fabric-1.21.1-2.6.6"
     modRuntimeOnly "de.maxhenkel.voicechat:voicechat-api:2.6.0:fabric-stub"
+
+    implementation "org.jcraft:jorbis:0.0.17"
+    include "org.jcraft:jorbis:0.0.17"
+
 }
 
 processResources {
