@@ -18,6 +18,9 @@
     ],
     "main": [
       "org.me.realradio.Realradio"
+    ],
+    "voicechat": [
+      "org.me.realradio.compat.RealRadioVoicechatPlugin"
     ]
   },
   "mixins": [
@@ -30,6 +33,7 @@
   "depends": {
     "fabricloader": ">=${loader_version}",
     "fabric-api": "*",
-    "minecraft": "${minecraft_version}"
+    "minecraft": "${minecraft_version}",
+    "voicechat_api": ">=2.6.0"
   }
 }

@@ -28,47 +28,37 @@ public class DemodulatorBlockEntity extends BlockEntity {
     }
 
     public static void tick(World world, BlockPos pos, BlockState state, DemodulatorBlockEntity be) {
-        if (world.isClient()) return;
+        if (world.isClient() || !(world instanceof ServerWorld serverWorld)) return;
 
         be.tickCounter++;
-
-        // Каждые 10 тиков (полсекунды) проверяем АУДИО-ПОТОК
-        if (be.tickCounter % 10 == 0) {
-            BlockPos antennaBase = AntennaUtil.findAntennaBase(world, pos);
-            int range = AntennaUtil.calculateRange(world, antennaBase);
-
-            RadioNetworkManager.AudioStreamPacket packet = RadioNetworkManager.receiveAudioStream(be.band, be.frequency, pos, antennaBase, range);
-
-            if (packet != null) {
-                // Если поймали НОВЫЙ поток (или переключили трек)
-                if (!packet.streamId().equals(be.playingStreamId)) {
-                    be.stopClientSound(world, pos); // Останавливаем старый звук, если он был
-
-                    // Запускаем новый звук!
-                    world.playSound(null, pos, packet.sound(), SoundCategory.RECORDS, 1.0f, 1.0f);
-                    be.playingSound = packet.sound();
-                    be.playingStreamId = packet.streamId();
-                }
-            } else {
-                // Пакетов в эфире НЕТ! Если у нас что-то играло — МГНОВЕННО ВЫКЛЮЧАЕМ!
-                if (be.playingStreamId != null) {
-                    be.stopClientSound(world, pos);
-                }
-            }
-        }
-
-        // Каждые 20 тиков (1 секунда) проверяем РЕДСТОУН
         if (be.tickCounter >= 20) {
             be.tickCounter = 0;
+
             BlockPos antennaBase = AntennaUtil.findAntennaBase(world, pos);
             int range = AntennaUtil.calculateRange(world, antennaBase);
 
+            // ФАЗА 0 ТЕСТ: Если у приёмника есть антенна — включаем 3D-канал синусоиды 440 Гц (радиус слышимости 16 блоков)
+            if (range > 0) {
+                org.me.realradio.compat.SvcRadioTransport.ensureReceiverActive(serverWorld, pos, 16.0f);
+            } else {
+                org.me.realradio.compat.SvcRadioTransport.removeReceiver(pos);
+            }
+
+            // Старая логика редстоуна остаётся работать параллельно
             int receivedPower = RadioNetworkManager.receiveRedstone(be.band, be.frequency, pos, antennaBase, range);
             int currentPower = state.get(DemodulatorBlock.POWER);
             if (receivedPower != currentPower) {
                 world.setBlockState(pos, state.with(DemodulatorBlock.POWER, receivedPower), 3);
             }
         }
+    }
+
+    @Override
+    public void markRemoved() {
+        if (this.world != null && !this.world.isClient()) {
+            org.me.realradio.compat.SvcRadioTransport.removeReceiver(this.pos);
+        }
+        super.markRemoved();
     }
 
     // Отправка пакета остановки звука всем игрокам вокруг приемника
@@ -98,15 +88,6 @@ public class DemodulatorBlockEntity extends BlockEntity {
 
     public float getFrequency() { return frequency; }
     public RadioBand getBand() { return band; }
-
-    @Override
-    public void markRemoved() {
-        // Если сломали сам ПРИЕМНИК — тоже обрубаем звук!
-        if (this.world != null && !this.world.isClient()) {
-            stopClientSound(this.world, this.pos);
-        }
-        super.markRemoved();
-    }
 
     @Override
     protected void writeNbt(NbtCompound nbt, RegistryWrapper.WrapperLookup registryLookup) {
