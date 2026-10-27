@@ -43,6 +43,14 @@ public class ModBlocks {
             BlockEntityType.Builder.create(MusicRadioBlockEntity::new, MUSIC_RADIO).build(null)
     );
 
+    public static final Block MICROPHONE = registerBlock("microphone",
+            new MicrophoneBlock(AbstractBlock.Settings.create().strength(2.0f)));
+
+    public static final BlockEntityType<MicrophoneBlockEntity> MICROPHONE_BE = Registry.register(
+            Registries.BLOCK_ENTITY_TYPE, Identifier.of(Realradio.MOD_ID, "microphone_be"),
+            BlockEntityType.Builder.create(MicrophoneBlockEntity::new, MICROPHONE).build(null)
+    );
+
     private static Block registerBlock(String name, Block block) {
         Identifier id = Identifier.of(Realradio.MOD_ID, name);
         Registry.register(Registries.ITEM, id, new BlockItem(block, new Item.Settings()));
@@ -56,6 +64,7 @@ public class ModBlocks {
             entries.add(ANTENNA_BASE);
             entries.add(ANTENNA_PART);
             entries.add(MUSIC_RADIO);
+            entries.add(MICROPHONE);
         });
     }
 }

@@ -1,0 +1,5 @@
+{
+  "variants": {
+    "": { "model": "realradio:block/microphone" }
+  }
+}

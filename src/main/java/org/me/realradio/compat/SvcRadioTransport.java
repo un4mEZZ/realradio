@@ -19,7 +19,7 @@ public class SvcRadioTransport {
     private static volatile boolean running = false;
 
     // Теперь храним диапазон и частоту прямо здесь!
-    private record ReceiverChannelHolder(LocationalAudioChannel channel, BlockPos pos, RadioBand band, float frequency) {}
+    private record ReceiverChannelHolder(LocationalAudioChannel channel, BlockPos pos, BlockPos antennaId, int rxRange, RadioBand band, float frequency) {}
     private static final Map<BlockPos, ReceiverChannelHolder> RECEIVER_CHANNELS = new ConcurrentHashMap<>();
 
     public static void onServerStarted(VoicechatServerApi api) {
@@ -38,29 +38,23 @@ public class SvcRadioTransport {
         serverApi = null;
     }
 
-    // Добавили band и frequency в аргументы!
-    public static void ensureReceiverActive(ServerWorld world, BlockPos pos, float distance, RadioBand band, float frequency) {
+    public static void ensureReceiverActive(ServerWorld world, BlockPos pos, BlockPos antennaId, int rxRange, float speakerDistance, RadioBand band, float frequency) {
         VoicechatServerApi api = serverApi;
         if (api == null) return;
 
-        RECEIVER_CHANNELS.compute(pos.toImmutable(), (p, existingHolder) -> {
-            // Если канал уже есть и частота не поменялась - ничего не делаем
-            if (existingHolder != null && existingHolder.band() == band && existingHolder.frequency() == frequency) {
-                return existingHolder;
+        RECEIVER_CHANNELS.compute(pos.toImmutable(), (p, existing) -> {
+            if (existing != null && existing.band() == band && existing.frequency() == frequency
+                    && java.util.Objects.equals(existing.antennaId(), antennaId) && existing.rxRange() == rxRange) {
+                return existing;
             }
-
-            // Если частота сменилась - старый канал нужно flush-нуть
-            if (existingHolder != null && existingHolder.channel() != null) {
-                existingHolder.channel().flush();
+            if (existing != null && existing.channel() != null) {
+                existing.channel().flush();
             }
-
             ServerLevel svcLevel = api.fromServerLevel(world);
             Position svcPos = api.createPosition(p.getX() + 0.5, p.getY() + 0.5, p.getZ() + 0.5);
             LocationalAudioChannel channel = api.createLocationalAudioChannel(UUID.randomUUID(), svcLevel, svcPos);
-            if (channel != null) {
-                channel.setDistance(distance);
-            }
-            return new ReceiverChannelHolder(channel, p, band, frequency);
+            if (channel != null) channel.setDistance(speakerDistance);
+            return new ReceiverChannelHolder(channel, p, antennaId, rxRange, band, frequency);
         });
     }
 
@@ -72,26 +66,33 @@ public class SvcRadioTransport {
     }
 
     private static void runAudioLoop() {
+        final short[] mixBuf = new short[ org.me.realradio.audio.OpusCodec.FRAME_SIZE ]; // [O6] 0 аллокаций в цикле
+        final Map<String, org.me.realradio.server.RadioBroadcaster.BroadcastResult> frameCache = new java.util.HashMap<>();
+
         long nextFrameTimeNs = System.nanoTime();
-        final long frameDurationNs = 20_000_000L; // 20 мс
-        int debugCounter = 0;
+        final long frameDurationNs = 20_000_000L;
 
         while (running) {
             nextFrameTimeNs += frameDurationNs;
-            debugCounter++;
+            frameCache.clear();
 
             for (ReceiverChannelHolder holder : RECEIVER_CHANNELS.values()) {
-                if (holder.channel() == null) continue;
+                if (holder.channel() == null || holder.rxRange() <= 0 || holder.antennaId() == null) continue;
 
-                // БЕЗ ОБРАЩЕНИЯ К world() - берем данные прямо из holder!
-                byte[] opusFrame = org.me.realradio.server.RadioBroadcaster.getCurrentFrameForFrequency(holder.band(), holder.frequency());
+                String key = holder.band().asString() + "_" + String.format("%.1f", holder.frequency());
+                // [O8] Получаем/микшируем кадр частоты ТОЛЬКО ОДИН РАЗ за 20мс тик!
+                var result = frameCache.computeIfAbsent(key,
+                        k -> org.me.realradio.server.RadioBroadcaster.pollFrequencyFrame(holder.band(), holder.frequency(), mixBuf));
 
-                if (opusFrame != null) {
-                    holder.channel().send(opusFrame);
+                if (result != null && result.opusFrame() != null) {
+                    // Защита от самовозбуждения (одна и та же антенна)
+                    if (holder.antennaId().equals(result.txAntennaId())) continue;
 
-                    // Дебаг-вывод раз в секунду (50 кадров)
-                    if (debugCounter % 50 == 0) {
-                        System.out.println("[ЭФИР] Кадр отправлен на " + holder.frequency() + " к приёмнику " + holder.pos());
+                    // Симметричная проверка радиуса антенн
+                    double distSq = holder.pos().getSquaredDistance(result.txPos());
+                    int maxRange = Math.min(holder.rxRange(), result.txRange());
+                    if (distSq <= (double) maxRange * maxRange) {
+                        holder.channel().send(result.opusFrame());
                     }
                 }
             }
